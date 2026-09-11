@@ -11,6 +11,8 @@
 *.dll
 *.so
 *.dylib
+.opencode
+.git
 
 # Test binary, built with `go test -c`
 *.test
