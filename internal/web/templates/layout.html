@@ -110,6 +110,9 @@
     <h3>Governance (read-only)</h3>
     <p>Provider: {{.GovernanceState.Reference.Provider}}</p>
     <p>Status: {{.GovernanceState.Status}}</p>
+    {{if not .GovernanceState.RefreshedAt.IsZero}}
+    <p>As of {{.GovernanceState.RefreshedAt.UTC.Format "2006-01-02 15:04 UTC"}}</p>
+    {{end}}
     {{if .GovernanceState.Blockers}}
     <p>Blockers: {{range .GovernanceState.Blockers}}{{.}} {{end}}</p>
     {{end}}

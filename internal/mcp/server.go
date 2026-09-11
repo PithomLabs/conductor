@@ -146,6 +146,10 @@ func (s *Server) handleListTools() MCPResponse {
 						"type": "string",
 						"description": "Task description",
 					},
+					"governance_ref": map[string]interface{}{
+						"type":        "string",
+						"description": "Opaque governance reference (optional, write-once at creation)",
+					},
 				},
 				"required": []string{"project_id", "title"},
 			},

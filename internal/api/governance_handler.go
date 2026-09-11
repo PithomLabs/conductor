@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/PithomLabs/conductor/internal/governance"
 )
@@ -51,8 +52,9 @@ func (s *Server) GetGovernance(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Return what we have without governance state
 		state = &governance.GovernanceState{
-			Reference: ref,
-			Status:    governance.GovernanceStatusUnknown,
+			Reference:   ref,
+			Status:      governance.GovernanceStatusUnknown,
+			RefreshedAt: time.Now(),
 		}
 	}
 

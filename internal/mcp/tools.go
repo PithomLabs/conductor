@@ -4,6 +4,7 @@ import (
 	"github.com/google/uuid"
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/PithomLabs/conductor/internal/domain"
 	"github.com/PithomLabs/conductor/internal/governance"
@@ -103,11 +104,17 @@ func (s *Server) createTask(args map[string]interface{}) MCPResponse {
 		taskID = uuid.New().String()
 	}
 
+	// governance_ref may be supplied at creation time. Once set, it is immutable.
 	task := &domain.Task{
 		ID:          taskID,
 		ProjectID:   projectID,
 		Title:       title,
 		Description: description,
+	}
+
+	govRef, _ := args["governance_ref"].(string)
+	if govRef != "" {
+		task.GovernanceRef = &govRef
 	}
 
 	if err := s.taskRepo.Create(ctx, task); err != nil {
@@ -304,9 +311,10 @@ func (s *Server) getGovernance(args map[string]interface{}) MCPResponse {
 	state, err := s.governance.GetState(ctx, ref)
 	if err != nil {
 		state = &governance.GovernanceState{
-			Reference: ref,
-			Status:    governance.GovernanceStatusUnknown,
-			Blockers:  []string{"provider unavailable"},
+			Reference:   ref,
+			Status:      governance.GovernanceStatusUnknown,
+			Blockers:    []string{"provider unavailable"},
+			RefreshedAt: time.Now(),
 		}
 	}
 	return MCPResponse{Result: state}

@@ -58,6 +58,7 @@ func (s *Server) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// governance_ref may be supplied at creation time. Once set, it is immutable.
 	var task domain.Task
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
