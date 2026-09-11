@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - Conductor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; }
+        header { background: #2c3e50; color: white; padding: 1rem 2rem; }
+        header h1 { font-size: 1.5rem; }
+        main { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+        .project-list { display: grid; gap: 1rem; }
+        .project-card { background: white; border-radius: 8px; padding: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .project-card h2 { margin-bottom: 0.5rem; }
+        .project-card a { color: #3498db; text-decoration: none; }
+        .project-card a:hover { text-decoration: underline; }
+        .task-board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 2rem; }
+        .column { background: #ecf0f1; border-radius: 8px; padding: 1rem; }
+        .column h3 { margin-bottom: 1rem; color: #2c3e50; }
+        .task-card { background: white; border-radius: 4px; padding: 1rem; margin-bottom: 0.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .task-card a { color: #2c3e50; text-decoration: none; font-weight: 500; }
+        .task-card a:hover { color: #3498db; }
+        .task-card .agent { display: block; color: #7f8c8d; font-size: 0.875rem; margin-top: 0.5rem; }
+        .governance-panel { background: #fff3cd; border-radius: 8px; padding: 1.5rem; margin-top: 2rem; border: 1px solid #ffc107; }
+        .governance-panel h3 { margin-bottom: 1rem; color: #856404; }
+        .governance-panel .note { font-style: italic; color: #856404; margin-top: 1rem; font-size: 0.875rem; }
+        .activity-log { background: white; border-radius: 8px; padding: 1.5rem; margin-top: 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .activity-log h3 { margin-bottom: 1rem; }
+        .activity-item { padding: 0.5rem 0; border-bottom: 1px solid #ecf0f1; }
+        .activity-item:last-child { border-bottom: none; }
+        .activity-item .time { color: #7f8c8d; margin-right: 1rem; }
+        .activity-item .actor { font-weight: 500; margin-right: 1rem; }
+        .task-meta { display: flex; gap: 1rem; margin: 1rem 0; }
+        .task-meta span { background: #ecf0f1; padding: 0.25rem 0.75rem; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><a href="/" style="color: white; text-decoration: none;">Conductor</a></h1>
+    </header>
+    <main>
+        {{template "content" .}}
+    </main>
+</body>
+</html>
+{{define "content"}}
+{{if .Projects}}
+<div class="project-list">
+    {{range .Projects}}
+    <div class="project-card">
+        <h2><a href="/project/{{.ID}}">{{.Name}}</a></h2>
+        <p>{{.Description}}</p>
+    </div>
+    {{end}}
+</div>
+{{else if .Project}}
+<h2>{{.Project.Name}}</h2>
+<p>{{.Project.Description}}</p>
+
+<div class="task-board">
+    <div class="column">
+        <h3>Proposed</h3>
+        {{range index .TaskBoard "proposed"}}
+        <div class="task-card">
+            <a href="/task/{{.ID}}">{{.Title}}</a>
+            {{if .CurrentAgent}}<span class="agent">{{.CurrentAgent}}</span>{{end}}
+        </div>
+        {{end}}
+    </div>
+    <div class="column">
+        <h3>Active</h3>
+        {{range index .TaskBoard "active"}}
+        <div class="task-card">
+            <a href="/task/{{.ID}}">{{.Title}}</a>
+            {{if .CurrentAgent}}<span class="agent">{{.CurrentAgent}}</span>{{end}}
+        </div>
+        {{end}}
+    </div>
+    <div class="column">
+        <h3>Review</h3>
+        {{range index .TaskBoard "review"}}
+        <div class="task-card">
+            <a href="/task/{{.ID}}">{{.Title}}</a>
+            {{if .CurrentAgent}}<span class="agent">{{.CurrentAgent}}</span>{{end}}
+        </div>
+        {{end}}
+    </div>
+    <div class="column">
+        <h3>Accepted</h3>
+        {{range index .TaskBoard "accepted"}}
+        <div class="task-card">
+            <a href="/task/{{.ID}}">{{.Title}}</a>
+        </div>
+        {{end}}
+    </div>
+</div>
+{{else if .Task}}
+<h2>{{.Task.Title}}</h2>
+<p>{{.Task.Description}}</p>
+
+<div class="task-meta">
+    <span>Status: {{.Task.Status}}</span>
+    <span>Priority: {{.Task.Priority}}</span>
+    {{if .Task.CurrentAgent}}<span>Agent: {{.Task.CurrentAgent}}</span>{{end}}
+</div>
+
+{{if .GovernanceState}}
+<div class="governance-panel">
+    <h3>Governance (read-only)</h3>
+    <p>Provider: {{.GovernanceState.Reference.Provider}}</p>
+    <p>Status: {{.GovernanceState.Status}}</p>
+    {{if .GovernanceState.Blockers}}
+    <p>Blockers: {{range .GovernanceState.Blockers}}{{.}} {{end}}</p>
+    {{end}}
+    <p class="note">This is what the external governance system currently reports. Consequences are executed via external governance system, not through Conductor.</p>
+</div>
+{{end}}
+
+<div class="activity-log">
+    <h3>Activity</h3>
+    {{if .Activities}}
+    {{range .Activities}}
+    <div class="activity-item">
+        <span class="time">{{.CreatedAt}}</span>
+        <span class="actor">{{.ActorType}}: {{.ActorID}}</span>
+        <span class="action">{{.Action}}</span>
+    </div>
+    {{end}}
+    {{else}}
+    <p>No activity recorded yet.</p>
+    {{end}}
+</div>
+{{else}}
+<p>No projects found. Create a project to get started.</p>
+{{end}}
+{{end}}
