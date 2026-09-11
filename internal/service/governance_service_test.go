@@ -48,4 +48,8 @@ func TestGovernanceServiceUnknownProvider(t *testing.T) {
 	if len(state.Blockers) == 0 {
 		t.Error("expected blocker for unknown provider")
 	}
+
+	if state.RefreshedAt.IsZero() {
+		t.Error("expected RefreshedAt to be set on unknown provider observation")
+	}
 }

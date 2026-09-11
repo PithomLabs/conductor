@@ -170,3 +170,113 @@ func TestMCPGetGovernanceProviderFailure(t *testing.T) {
 		t.Errorf("expected 'provider unavailable' blocker, got %v", state.Blockers)
 	}
 }
+
+func TestMCPCreateTaskWithGovernanceRef(t *testing.T) {
+	server := setupTestMCP(t)
+
+	err := server.projectRepo.Create(ctx, &domain.Project{
+		ID:   "proj-mcp-gov",
+		Name: "MCP Gov Project",
+	})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	govRef := `{"provider":"solvent","reference_id":"scenario-mcp"}`
+	resp := server.CallTool("conductor_create_task", map[string]interface{}{
+		"project_id":    "proj-mcp-gov",
+		"title":         "MCP Governed Task",
+		"task_id":       "task-mcp-gov",
+		"governance_ref": govRef,
+	})
+	if resp.Error != "" {
+		t.Fatalf("create task error: %s", resp.Error)
+	}
+
+	task, ok := resp.Result.(*domain.Task)
+	if !ok {
+		t.Fatalf("expected *domain.Task, got %T", resp.Result)
+	}
+	if task.GovernanceRef == nil || *task.GovernanceRef != govRef {
+		t.Errorf("expected governance_ref %q, got %v", govRef, task.GovernanceRef)
+	}
+}
+
+func TestMCPCreateTaskWithoutGovernanceRef(t *testing.T) {
+	server := setupTestMCP(t)
+
+	err := server.projectRepo.Create(ctx, &domain.Project{
+		ID:   "proj-mcp-nogov",
+		Name: "MCP NoGov Project",
+	})
+	if err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	resp := server.CallTool("conductor_create_task", map[string]interface{}{
+		"project_id": "proj-mcp-nogov",
+		"title":      "MCP Ungoverned Task",
+		"task_id":    "task-mcp-nogov",
+	})
+	if resp.Error != "" {
+		t.Fatalf("create task error: %s", resp.Error)
+	}
+
+	task, ok := resp.Result.(*domain.Task)
+	if !ok {
+		t.Fatalf("expected *domain.Task, got %T", resp.Result)
+	}
+	if task.GovernanceRef != nil {
+		t.Errorf("expected governance_ref nil, got %v", *task.GovernanceRef)
+	}
+}
+
+func TestMCPSchemaAdvertisesGovernanceRef(t *testing.T) {
+	server := setupTestMCP(t)
+
+	resp := server.handleListTools()
+	if resp.Error != "" {
+		t.Fatalf("list tools error: %s", resp.Error)
+	}
+
+	result, ok := resp.Result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("unexpected result type: %T", resp.Result)
+	}
+
+	tools, ok := result["tools"].([]map[string]interface{})
+	if !ok {
+		t.Fatalf("unexpected tools type: %T", result["tools"])
+	}
+
+	// Find conductor_create_task
+	for _, tool := range tools {
+		if tool["name"] == "conductor_create_task" {
+			schema, ok := tool["inputSchema"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("unexpected schema type: %T", tool["inputSchema"])
+			}
+			props, ok := schema["properties"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("unexpected properties type: %T", schema["properties"])
+			}
+			govProp, ok := props["governance_ref"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("governance_ref not found in schema properties; available: %v", keysOf(props))
+			}
+			if govProp["type"] != "string" {
+				t.Errorf("expected governance_ref type 'string', got %v", govProp["type"])
+			}
+			return
+		}
+	}
+	t.Error("conductor_create_task tool not found in schema")
+}
+
+func keysOf(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}

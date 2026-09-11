@@ -1003,3 +1003,134 @@ func TestReleaseFromProposedRejected(t *testing.T) {
 		t.Errorf("expected ErrReleaseFailed, got %v", err)
 	}
 }
+
+func TestTaskCreateWithGovernanceRef(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	projectRepo := NewProjectRepository(db)
+	taskRepo := NewTaskRepository(db)
+	ctx := context.Background()
+
+	project := &domain.Project{ID: "proj-gov", Name: "Gov Project"}
+	if err := projectRepo.Create(ctx, project); err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	govRef := `{"provider":"solvent","reference_id":"scenario-1"}`
+	task := &domain.Task{
+		ID:            "task-gov",
+		ProjectID:     "proj-gov",
+		Title:         "Governed Task",
+		GovernanceRef: &govRef,
+	}
+	if err := taskRepo.Create(ctx, task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	got, err := taskRepo.GetByID(ctx, "task-gov")
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	if got.GovernanceRef == nil || *got.GovernanceRef != govRef {
+		t.Errorf("expected governance_ref %q, got %v", govRef, got.GovernanceRef)
+	}
+}
+
+func TestTaskGovernanceRefImmutabilityViaUpdate(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	projectRepo := NewProjectRepository(db)
+	taskRepo := NewTaskRepository(db)
+	ctx := context.Background()
+
+	project := &domain.Project{ID: "proj-imm", Name: "Imm Project"}
+	if err := projectRepo.Create(ctx, project); err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	govRef := `{"provider":"solvent","reference_id":"scenario-2"}`
+	task := &domain.Task{
+		ID:            "task-imm",
+		ProjectID:     "proj-imm",
+		Title:         "Immutability Test",
+		GovernanceRef: &govRef,
+	}
+	if err := taskRepo.Create(ctx, task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	newTitle := "Updated Title"
+	err := taskRepo.Update(ctx, "task-imm", TaskUpdateFields{Title: &newTitle})
+	if err != nil {
+		t.Fatalf("update task: %v", err)
+	}
+
+	got, err := taskRepo.GetByID(ctx, "task-imm")
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	if got.Title != "Updated Title" {
+		t.Errorf("expected title 'Updated Title', got %q", got.Title)
+	}
+	if got.GovernanceRef == nil || *got.GovernanceRef != govRef {
+		t.Errorf("expected governance_ref preserved, got %v", got.GovernanceRef)
+	}
+}
+
+func TestTaskGovernanceRefImmutabilityViaLifecycle(t *testing.T) {
+	db := setupTestDB(t)
+	defer db.Close()
+
+	projectRepo := NewProjectRepository(db)
+	taskRepo := NewTaskRepository(db)
+	ctx := context.Background()
+
+	project := &domain.Project{ID: "proj-life", Name: "Lifecycle Project"}
+	if err := projectRepo.Create(ctx, project); err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+
+	govRef := `{"provider":"solvent","reference_id":"scenario-3"}`
+	task := &domain.Task{
+		ID:            "task-life",
+		ProjectID:     "proj-life",
+		Title:         "Lifecycle Governance",
+		GovernanceRef: &govRef,
+	}
+	if err := taskRepo.Create(ctx, task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	// Claim
+	if err := taskRepo.Claim(ctx, "task-life", "agent-1"); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	got, _ := taskRepo.GetByID(ctx, "task-life")
+	if got.GovernanceRef == nil || *got.GovernanceRef != govRef {
+		t.Errorf("governance_ref changed after claim: %v", got.GovernanceRef)
+	}
+
+	// Submit
+	if err := taskRepo.Transition(ctx, "task-life",
+		domain.TaskStatusActive, domain.TaskStatusReview,
+		"agent", "agent-1", "task.submitted", "{}"); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	got, _ = taskRepo.GetByID(ctx, "task-life")
+	if got.GovernanceRef == nil || *got.GovernanceRef != govRef {
+		t.Errorf("governance_ref changed after submit: %v", got.GovernanceRef)
+	}
+
+	// Accept
+	if err := taskRepo.Transition(ctx, "task-life",
+		domain.TaskStatusReview, domain.TaskStatusAccepted,
+		"agent", "agent-1", "task.accepted", "{}"); err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	got, _ = taskRepo.GetByID(ctx, "task-life")
+	if got.GovernanceRef == nil || *got.GovernanceRef != govRef {
+		t.Errorf("governance_ref changed after accept: %v", got.GovernanceRef)
+	}
+}

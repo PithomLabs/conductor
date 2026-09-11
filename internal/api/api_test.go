@@ -320,3 +320,145 @@ func TestAPIInvalidTransition(t *testing.T) {
 		t.Errorf("expected 400 for invalid transition, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestHTTPCreateTaskWithGovernanceRef(t *testing.T) {
+	server := setupTestServer(t)
+	mux := wrappedMux(server)
+
+	// Create project
+	body := `{"id":"proj-gov","name":"Gov Project"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/projects", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", "test-key-1")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create project: expected 201, got %d", w.Code)
+	}
+
+	// Create task with governance_ref
+	body = `{"id":"task-gov","title":"Governed Task","governance_ref":"{\"provider\":\"solvent\",\"reference_id\":\"scenario-1\"}"}`
+	req = httptest.NewRequest(http.MethodPost, "/v1/projects/proj-gov/tasks", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", "test-key-1")
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create task: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// GET the task and verify governance_ref persisted
+	req = httptest.NewRequest(http.MethodGet, "/v1/tasks/task-gov", nil)
+	req.Header.Set("X-API-Key", "test-key-1")
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var task map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&task); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if task["governance_ref"] == nil {
+		t.Error("expected governance_ref to be set")
+	}
+}
+
+func TestHTTPCreateTaskWithoutGovernanceRef(t *testing.T) {
+	server := setupTestServer(t)
+	mux := wrappedMux(server)
+
+	body := `{"id":"proj-nogov","name":"NoGov Project"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/projects", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", "test-key-1")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create project: expected 201, got %d", w.Code)
+	}
+
+	body = `{"id":"task-nogov","title":"Ungoverned Task"}`
+	req = httptest.NewRequest(http.MethodPost, "/v1/projects/proj-nogov/tasks", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", "test-key-1")
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create task: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/v1/tasks/task-nogov", nil)
+	req.Header.Set("X-API-Key", "test-key-1")
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var task map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&task); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if task["governance_ref"] != nil {
+		t.Errorf("expected governance_ref nil, got %v", task["governance_ref"])
+	}
+}
+
+func TestHTTPUpdateTaskDoesNotAlterGovernanceRef(t *testing.T) {
+	server := setupTestServer(t)
+	mux := wrappedMux(server)
+
+	// Create project
+	body := `{"id":"proj-patch","name":"Patch Project"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/projects", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", "test-key-1")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create project: expected 201, got %d", w.Code)
+	}
+
+	// Create task with governance_ref
+	govRefBody := map[string]interface{}{
+		"id":             "task-patch",
+		"title":          "Patch Test",
+		"governance_ref": `{"provider":"solvent","reference_id":"scenario-4"}`,
+	}
+	govRefJSON, _ := json.Marshal(govRefBody)
+	body = string(govRefJSON)
+	req = httptest.NewRequest(http.MethodPost, "/v1/projects/proj-patch/tasks", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", "test-key-1")
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create task: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// PATCH title
+	patchBody := `{"title":"Patched Title"}`
+	req = httptest.NewRequest(http.MethodPatch, "/v1/tasks/task-patch", bytes.NewBufferString(patchBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", "test-key-1")
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("patch task: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify governance_ref unchanged
+	req = httptest.NewRequest(http.MethodGet, "/v1/tasks/task-patch", nil)
+	req.Header.Set("X-API-Key", "test-key-1")
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var task map[string]interface{}
+	if err := json.NewDecoder(w.Body).Decode(&task); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if task["title"] != "Patched Title" {
+		t.Errorf("expected title 'Patched Title', got %v", task["title"])
+	}
+	if task["governance_ref"] == nil {
+		t.Error("expected governance_ref preserved after PATCH")
+	}
+}

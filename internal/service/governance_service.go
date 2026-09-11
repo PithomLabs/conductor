@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/PithomLabs/conductor/internal/governance"
 )
@@ -29,9 +30,10 @@ func (s *GovernanceService) GetState(ctx context.Context, ref governance.Governa
 	reader, ok := s.readers[ref.Provider]
 	if !ok {
 		return &governance.GovernanceState{
-			Reference: ref,
-			Status:    governance.GovernanceStatusUnknown,
-			Blockers:  []string{fmt.Sprintf("unknown governance provider: %s", ref.Provider)},
+			Reference:   ref,
+			Status:      governance.GovernanceStatusUnknown,
+			Blockers:    []string{fmt.Sprintf("unknown governance provider: %s", ref.Provider)},
+			RefreshedAt: time.Now(),
 		}, nil
 	}
 	return reader.GetState(ctx, ref)
