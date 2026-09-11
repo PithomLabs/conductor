@@ -9,18 +9,22 @@ use.
 
 ## Core model
 
+![Conductor](conductor.png)
+
 Four roles, each with a distinct responsibility:
 
 | Role | Name | Responsibility |
 |------|------|---------------|
 | Agency | **Agent** | Reasons, implements, produces artifacts, performs work |
 | Coordination | **Conductor** | Tracks work, assignments, dependencies, lifecycle |
-| Authority | **Solvent** | Owns authorization and consequential decisions |
+| Authority | **[Solvent](https://github.com/PithomLabs/solvent)** | Owns authorization and consequential decisions |
 | Effect | **Executor** | Produces actual external outcomes |
 
 A single rule binds them: **capability ≠ work ≠ authority ≠ execution**.
 Conductor enforces this by never executing work, never authorizing
 consequences, and never inferring authority from task state.
+
+
 
 ## What Conductor provides
 
